@@ -54,6 +54,7 @@ cp .env.example .env
 OBSIDIAN_BASE_URL=https://localhost:27124
 OBSIDIAN_API_KEY=your_key_here
 OBSIDIAN_VAULT_ROOT=AI Engineering
+VECTOR_DB_URL=postgresql://obsidian:obsidian@localhost:5433/obsidian_mcp
 EMBEDDING_PROVIDER=bedrock
 AWS_REGION=us-east-1
 BEDROCK_MODEL_ID=amazon.titan-embed-text-v2:0
@@ -63,6 +64,8 @@ AWS_BEARER_TOKEN_BEDROCK=your_bedrock_bearer_token_here
 
 Observação:
 - Se `EMBEDDING_PROVIDER` não for `bedrock`, o projeto usa embedding determinístico local (fallback) para desenvolvimento.
+- Se `VECTOR_DB_URL` estiver definido, o servidor usa Postgres/pgvector como store vetorial persistente.
+- Se `VECTOR_DB_URL` estiver vazio, o servidor usa fallback em memória.
 
 ## Desenvolvimento
 

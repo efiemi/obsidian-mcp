@@ -5,7 +5,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { settings } from "../src/config.js";
 import { Embedder } from "../src/rag/embedder.js";
 import { VaultIndexer } from "../src/rag/indexer.js";
-import { InMemoryVectorStore } from "../src/rag/vector-store.js";
+import { createVectorStore } from "../src/rag/store-factory.js";
 
 const listMarkdownFiles = async (basePath: string): Promise<string[]> => {
   const entries = await readdir(basePath, { withFileTypes: true });
@@ -70,7 +70,7 @@ const main = async (): Promise<void> => {
   }
 
   const embedder = new Embedder();
-  const store = new InMemoryVectorStore();
+  const store = createVectorStore();
   const indexer = new VaultIndexer(embedder, store);
 
   const files = await listMarkdownFiles(vaultPath);

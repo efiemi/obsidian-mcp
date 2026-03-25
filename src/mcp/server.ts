@@ -1,5 +1,5 @@
 import { ObsidianClient } from "../obsidian/client.js";
-import { InMemoryVectorStore } from "../rag/vector-store.js";
+import { createVectorStore } from "../rag/store-factory.js";
 import {
   APPEND_TO_NOTE_SCHEMA,
   CREATE_NOTE_FROM_TEMPLATE_SCHEMA,
@@ -55,7 +55,7 @@ export class MCPServer {
 
   private client: ObsidianClient | null = null;
 
-  private readonly store = new InMemoryVectorStore();
+  private readonly store = createVectorStore();
 
   private readonly tools: Record<string, { spec: ToolSpec; handler: ToolHandler }> = {
     read_note: {

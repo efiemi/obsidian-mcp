@@ -1,10 +1,10 @@
 import { Embedder } from "../../rag/embedder.js";
-import { InMemoryVectorStore } from "../../rag/vector-store.js";
+import { type VectorStore } from "../../rag/vector-store.js";
 import { ObsidianClient } from "../../obsidian/client.js";
 
-export const semanticSearch = async (store: InMemoryVectorStore, query: string, topK = 5) => {
+export const semanticSearch = async (store: VectorStore, query: string, topK = 5) => {
   const vector = await new Embedder().embedText(query);
-  const docs = store.query(vector, topK);
+  const docs = await store.query(vector, topK);
 
   return docs.map((doc) => ({
     path: doc.path,
@@ -106,11 +106,11 @@ const getNoteEmbeddingCached = async (
 };
 
 const semanticFromStore = async (
-  store: InMemoryVectorStore,
+  store: VectorStore,
   queryEmbedding: number[],
   topK: number
 ): Promise<{ path: string; score: number; excerpt: string }[]> => {
-  const docs = store.query(queryEmbedding, topK);
+  const docs = await store.query(queryEmbedding, topK);
   return docs.map((doc) => ({
     path: doc.path,
     score: dotProduct(queryEmbedding, doc.embedding),
@@ -163,7 +163,7 @@ const normalizeScores = (pairs: Array<{ path: string; score: number }>): Map<str
 
 export const hybridSearch = async (
   client: ObsidianClient,
-  store: InMemoryVectorStore,
+  store: VectorStore,
   query: string,
   topK = 8
 ) => {
@@ -210,7 +210,7 @@ export const hybridSearch = async (
 
 export const getSimilarNotes = async (
   client: ObsidianClient,
-  store: InMemoryVectorStore,
+  store: VectorStore,
   path: string,
   topK = 8
 ) => {
@@ -219,8 +219,8 @@ export const getSimilarNotes = async (
   const targetContent = await getNoteContentCached(client, path);
   const targetEmbedding = await getNoteEmbeddingCached(client, path, embedder);
 
-  const storeCandidates = store
-    .query(targetEmbedding, limit * 3)
+  const storeCandidates = (await store
+    .query(targetEmbedding, limit * 3))
     .map((doc) => ({
       path: doc.path,
       score: dotProduct(targetEmbedding, doc.embedding),
