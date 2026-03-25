@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: obsidian-mcp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: obsidian_mcp
+      POSTGRES_USER: obsidian
+      POSTGRES_PASSWORD: obsidian
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U obsidian -d obsidian_mcp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
