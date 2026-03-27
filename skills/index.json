@@ -1,0 +1,109 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-03-25",
+  "source": "obsidian-mcp",
+  "skills": [
+    {
+      "name": "obsidian-read-note",
+      "mcpTool": "read_note",
+      "path": "skills/obsidian-read-note/SKILL.md",
+      "description": "Reads a note from the Obsidian vault using the read_note MCP tool."
+    },
+    {
+      "name": "obsidian-write-note",
+      "mcpTool": "write_note",
+      "path": "skills/obsidian-write-note/SKILL.md",
+      "description": "Writes or overwrites a note in the Obsidian vault using write_note."
+    },
+    {
+      "name": "obsidian-append-to-note",
+      "mcpTool": "append_to_note",
+      "path": "skills/obsidian-append-to-note/SKILL.md",
+      "description": "Appends content to an existing note with append_to_note."
+    },
+    {
+      "name": "obsidian-update-section",
+      "mcpTool": "update_section",
+      "path": "skills/obsidian-update-section/SKILL.md",
+      "description": "Updates or creates a specific markdown heading section using update_section."
+    },
+    {
+      "name": "obsidian-create-note-from-template",
+      "mcpTool": "create_note_from_template",
+      "path": "skills/obsidian-create-note-from-template/SKILL.md",
+      "description": "Creates notes from predefined templates via create_note_from_template."
+    },
+    {
+      "name": "obsidian-search-notes",
+      "mcpTool": "search_notes",
+      "path": "skills/obsidian-search-notes/SKILL.md",
+      "description": "Searches notes by keyword with search_notes."
+    },
+    {
+      "name": "obsidian-list-notes",
+      "mcpTool": "list_notes",
+      "path": "skills/obsidian-list-notes/SKILL.md",
+      "description": "Lists markdown files recursively with list_notes."
+    },
+    {
+      "name": "obsidian-list-folders",
+      "mcpTool": "list_folders",
+      "path": "skills/obsidian-list-folders/SKILL.md",
+      "description": "Lists folders recursively with list_folders."
+    },
+    {
+      "name": "obsidian-get-note-metadata",
+      "mcpTool": "get_note_metadata",
+      "path": "skills/obsidian-get-note-metadata/SKILL.md",
+      "description": "Retrieves note metadata with get_note_metadata."
+    },
+    {
+      "name": "obsidian-get-note-links",
+      "mcpTool": "get_note_links",
+      "path": "skills/obsidian-get-note-links/SKILL.md",
+      "description": "Returns incoming and outgoing links with get_note_links."
+    },
+    {
+      "name": "obsidian-get-backlinks",
+      "mcpTool": "get_backlinks",
+      "path": "skills/obsidian-get-backlinks/SKILL.md",
+      "description": "Retrieves backlinks with get_backlinks."
+    },
+    {
+      "name": "obsidian-get-outgoing-links",
+      "mcpTool": "get_outgoing_links",
+      "path": "skills/obsidian-get-outgoing-links/SKILL.md",
+      "description": "Extracts outgoing links from a note with get_outgoing_links."
+    },
+    {
+      "name": "obsidian-get-graph-context",
+      "mcpTool": "get_graph_context",
+      "path": "skills/obsidian-get-graph-context/SKILL.md",
+      "description": "Builds local graph context and semantic cluster using get_graph_context."
+    },
+    {
+      "name": "obsidian-semantic-search",
+      "mcpTool": "semantic_search",
+      "path": "skills/obsidian-semantic-search/SKILL.md",
+      "description": "Runs embedding-based retrieval with semantic_search."
+    },
+    {
+      "name": "obsidian-hybrid-search",
+      "mcpTool": "hybrid_search",
+      "path": "skills/obsidian-hybrid-search/SKILL.md",
+      "description": "Combines keyword and semantic ranking via hybrid_search."
+    },
+    {
+      "name": "obsidian-get-similar-notes",
+      "mcpTool": "get_similar_notes",
+      "path": "skills/obsidian-get-similar-notes/SKILL.md",
+      "description": "Finds semantically similar notes from a source note using get_similar_notes."
+    },
+    {
+      "name": "obsidian-summarize-notes",
+      "mcpTool": "summarize_notes",
+      "path": "skills/obsidian-summarize-notes/SKILL.md",
+      "description": "Summarizes multiple notes with summarize_notes."
+    }
+  ]
+}
