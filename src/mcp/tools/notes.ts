@@ -623,6 +623,37 @@ export const appendToNote = async (
   return { path: normalizedPath, status: current === null ? "created" : "appended" };
 };
 
+export const createFolder = async (
+  client: ObsidianClient,
+  path: string
+): Promise<{ path: string; readmePath: string; readmeStatus: "created" | "already_exists" }> => {
+  validatePath(path);
+
+  const normalizedFolder = normalizeFolder(path);
+  if (!normalizedFolder) {
+    throw new Error("Folder path is required");
+  }
+
+  const readmePath = `${normalizedFolder}/README.md`;
+  validateWrite(readmePath);
+
+  const existingReadme = await readNoteOrNull(client, readmePath);
+  if (existingReadme === null) {
+    await writeNote(client, readmePath, "");
+    return {
+      path: normalizedFolder,
+      readmePath,
+      readmeStatus: "created"
+    };
+  }
+
+  return {
+    path: normalizedFolder,
+    readmePath,
+    readmeStatus: "already_exists"
+  };
+};
+
 export const updateSection = async (
   client: ObsidianClient,
   path: string,

@@ -74,15 +74,24 @@ const main = async (): Promise<void> => {
   const indexer = new VaultIndexer(embedder, store);
 
   const files = await listMarkdownFiles(vaultPath);
+  let indexedCount = 0;
+  let skippedEmptyCount = 0;
 
   for (const filePath of files) {
     const content = await readFile(filePath, "utf-8");
     const relPath = relative(vaultPath, filePath);
+
+    if (!content.trim()) {
+      skippedEmptyCount += 1;
+      continue;
+    }
+
     await indexer.indexNote(relPath, content, { type: "note" });
+    indexedCount += 1;
   }
 
   // Keep output simple for automation.
-  console.log(`Indexed ${files.length} markdown files`);
+  console.log(`Indexed ${indexedCount} markdown files (skipped empty: ${skippedEmptyCount})`);
 };
 
 main().catch((error: unknown) => {

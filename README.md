@@ -7,6 +7,7 @@ Servidor MCP em Node.js/TypeScript para integrar agentes (Codex/IDE) com um vaul
 - `read_note`: lê uma nota
 - `write_note`: cria/sobrescreve uma nota
 - `append_to_note`: adiciona conteúdo ao final sem overwrite
+- `create_folder`: cria pasta garantindo um `README.md` vazio
 - `update_section`: atualiza/cria seção markdown por heading
 - `create_note_from_template`: cria nota a partir de template + dados
 - `search_notes`: busca textual
@@ -101,6 +102,43 @@ npm run ingest
 Observação:
 - `OBSIDIAN_VAULT_ROOT` pode ser caminho absoluto (recomendado) ou apenas o nome do vault (ex.: `Efiemi-Tech`).
 - Quando for apenas nome, o script tenta localizar em `./`, `~/`, `~/Obsidian`, `~/Documents/Obsidian` e `~/Documentos/Obsidian`.
+
+## Quando o RAG é usado neste servidor
+
+O servidor usa RAG nas tools abaixo:
+
+- `semantic_search`: faz embedding da query e busca vetorial no `VectorStore` (Postgres/pgvector ou memória). Para ter resultado consistente aqui, rode `npm run ingest` antes.
+- `hybrid_search`: combina busca keyword (`search_notes`) com score semântico.
+  - Primeiro tenta semântico no índice vetorial.
+  - Se o índice estiver vazio/incompleto, faz fallback "live" lendo notas do vault (até 120) e calculando embedding na hora.
+- `get_similar_notes`: calcula embedding da nota alvo e procura similares no índice vetorial.
+  - Se faltar cobertura no índice, também usa fallback "live" no vault.
+
+Tools como `read_note`, `list_notes`, `search_notes` e `summarize_notes` não dependem de índice vetorial para funcionar.
+
+## Quando usamos embedding via Bedrock
+
+O Bedrock é usado sempre que `EMBEDDING_PROVIDER=bedrock`:
+
+- Durante `npm run ingest`: embedding de cada nota indexada.
+- Durante consultas semânticas: embedding da query em `semantic_search` e `hybrid_search`.
+- Em `get_similar_notes`: embedding da nota alvo e, no fallback "live", embedding das notas candidatas.
+
+Se `EMBEDDING_PROVIDER` for diferente de `bedrock`, o servidor usa embedding determinístico local (hash), útil para dev/testes, mas com qualidade semântica inferior.
+
+## Por que usar este servidor MCP vs ler `.md` direto no agente
+
+Principais vantagens do servidor:
+
+- Menor custo de contexto: retorna poucos candidatos relevantes em vez de enviar muitas notas completas ao agente.
+- Melhor recall semântico: encontra notas relacionadas mesmo sem correspondência literal de palavra-chave.
+- Escalabilidade: índice vetorial (pgvector) mantém busca rápida com volume maior de notas.
+- Repetibilidade: mesma query tende a retornar ranking estável (menos dependente da janela de contexto do agente).
+- Integração operacional: tools especializadas (`hybrid_search`, `get_similar_notes`, `get_graph_context`) reduzem prompt/manual work.
+
+Trade-off importante:
+
+- Qualidade depende de ingestão atualizada. Se o vault mudou e não houve `ingest`, parte dos resultados pode depender do fallback "live" (mais lento e limitado).
 
 ## Integração MCP (Codex/IDE)
 

@@ -24,6 +24,12 @@ export const LIST_PATH_SCHEMA = {
   properties: { path: { type: "string" } }
 };
 
+export const CREATE_FOLDER_SCHEMA = {
+  type: "object",
+  properties: { path: { type: "string" } },
+  required: ["path"]
+};
+
 export const GET_NOTE_METADATA_SCHEMA = {
   type: "object",
   properties: { path: { type: "string" } },

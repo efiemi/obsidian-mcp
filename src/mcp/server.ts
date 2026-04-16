@@ -2,6 +2,7 @@ import { ObsidianClient } from "../obsidian/client.js";
 import { createVectorStore } from "../rag/store-factory.js";
 import {
   APPEND_TO_NOTE_SCHEMA,
+  CREATE_FOLDER_SCHEMA,
   CREATE_NOTE_FROM_TEMPLATE_SCHEMA,
   GET_SIMILAR_NOTES_SCHEMA,
   GET_BACKLINKS_SCHEMA,
@@ -19,6 +20,7 @@ import {
 } from "./schemas.js";
 import {
   appendToNote,
+  createFolder,
   createNoteFromTemplate,
   getBacklinks,
   getGraphContext,
@@ -83,6 +85,14 @@ export class MCPServer {
       },
       handler: async (args) =>
         appendToNote(this.getClient(), String(args.path ?? ""), String(args.content ?? ""))
+    },
+    create_folder: {
+      spec: {
+        name: "create_folder",
+        description: "Create a folder by creating an empty README.md note inside it",
+        inputSchema: CREATE_FOLDER_SCHEMA
+      },
+      handler: async (args) => createFolder(this.getClient(), String(args.path ?? ""))
     },
     update_section: {
       spec: {
