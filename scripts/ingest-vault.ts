@@ -5,6 +5,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { settings } from "../src/config.js";
 import { Embedder } from "../src/rag/embedder.js";
 import { VaultIndexer } from "../src/rag/indexer.js";
+import { buildNoteMetadata } from "../src/rag/note-metadata.js";
 import { createVectorStore } from "../src/rag/store-factory.js";
 
 const listMarkdownFiles = async (basePath: string): Promise<string[]> => {
@@ -82,6 +83,7 @@ const main = async (): Promise<void> => {
   for (const filePath of files) {
     const content = await readFile(filePath, "utf-8");
     const relPath = relative(vaultPath, filePath);
+    const fileStats = await stat(filePath);
 
     if (!content.trim()) {
       skippedEmptyCount += 1;
@@ -89,7 +91,11 @@ const main = async (): Promise<void> => {
     }
 
     try {
-      await indexer.indexNote(relPath, content, { type: "note" });
+      await indexer.indexNote(
+        relPath,
+        content,
+        buildNoteMetadata(relPath, content, { updatedAt: fileStats.mtime.toISOString() })
+      );
       indexedCount += 1;
     } catch (error: unknown) {
       failedCount += 1;

@@ -71,6 +71,10 @@ BEDROCK_EMBEDDING_DIMENSIONS=256
 BEDROCK_MAX_INPUT_CHARS=25000
 HYBRID_KEYWORD_WEIGHT=0.45
 HYBRID_SEMANTIC_WEIGHT=0.55
+HYBRID_BOOST_TAG_MATCH=0.08
+HYBRID_BOOST_FOLDER_MATCH=0.05
+HYBRID_BOOST_RECENT_DAYS=30
+HYBRID_BOOST_RECENT_VALUE=0.04
 AWS_BEARER_TOKEN_BEDROCK=your_bedrock_bearer_token_here
 ```
 
@@ -126,9 +130,12 @@ O servidor usa RAG nas tools abaixo:
 
 - `semantic_search`: faz embedding da query e busca vetorial no `VectorStore` (Postgres/pgvector ou memória). Para ter resultado consistente aqui, rode `npm run ingest` antes.
   - Quando o índice estiver vazio, retorna `warning` com orientação para executar `run_ingest`/`sync_if_dirty`.
+  - Aceita filtros opcionais: `folder`, `tags`, `dateFrom`, `dateTo`.
 - `hybrid_search`: combina busca keyword (`search_notes`) com score semântico.
   - Primeiro tenta semântico no índice vetorial.
   - Se o índice estiver vazio/incompleto, faz fallback "live" lendo notas do vault (até 120) e calculando embedding na hora.
+  - Aceita filtros opcionais: `folder`, `tags`, `dateFrom`, `dateTo`.
+  - Aplica re-ranking com `scoreBreakdown` e boosts configuráveis por metadata.
 - `get_similar_notes`: calcula embedding da nota alvo e procura similares no índice vetorial.
   - Se faltar cobertura no índice, também usa fallback "live" no vault.
 

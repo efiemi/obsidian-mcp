@@ -36,5 +36,9 @@ export const settings = {
   bedrockMaxInputChars: toInt(process.env.BEDROCK_MAX_INPUT_CHARS, 25_000),
   hybridKeywordWeight: toFloat(process.env.HYBRID_KEYWORD_WEIGHT, 0.45),
   hybridSemanticWeight: toFloat(process.env.HYBRID_SEMANTIC_WEIGHT, 0.55),
+  hybridBoostTagMatch: toFloat(process.env.HYBRID_BOOST_TAG_MATCH, 0.08),
+  hybridBoostFolderMatch: toFloat(process.env.HYBRID_BOOST_FOLDER_MATCH, 0.05),
+  hybridBoostRecentDays: toInt(process.env.HYBRID_BOOST_RECENT_DAYS, 30),
+  hybridBoostRecentValue: toFloat(process.env.HYBRID_BOOST_RECENT_VALUE, 0.04),
   blockedOverwritePrefixes: splitPrefixes(process.env.BLOCKED_OVERWRITE_PREFIXES)
 };

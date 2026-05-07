@@ -6,6 +6,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { settings } from "../config.js";
 import { Embedder } from "./embedder.js";
 import { VaultIndexer } from "./indexer.js";
+import { buildNoteMetadata } from "./note-metadata.js";
 import { type VectorStore } from "./vector-store.js";
 
 type IndexState = {
@@ -160,6 +161,7 @@ const syncInternal = async (paths: string[] | null, mode: SyncResult["mode"], st
 
     try {
       const content = await readFile(absPath, "utf-8");
+      const fileStats = await stat(absPath);
       if (!content.trim()) {
         skippedEmpty += 1;
         continue;
@@ -171,7 +173,11 @@ const syncInternal = async (paths: string[] | null, mode: SyncResult["mode"], st
         continue;
       }
 
-      await indexer.indexNote(relPath, content, { type: "note" });
+      await indexer.indexNote(
+        relPath,
+        content,
+        buildNoteMetadata(relPath, content, { updatedAt: fileStats.mtime.toISOString() })
+      );
       state.hashes[relPath] = hash;
       indexed += 1;
     } catch {

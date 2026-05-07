@@ -23,7 +23,11 @@ export const SEMANTIC_SEARCH_SCHEMA = {
   type: "object",
   properties: {
     query: { type: "string" },
-    topK: { type: "number" }
+    topK: { type: "number" },
+    folder: { type: "string" },
+    tags: { type: "array", items: { type: "string" } },
+    dateFrom: { type: "string" },
+    dateTo: { type: "string" }
   },
   required: ["query"]
 };
@@ -112,7 +116,11 @@ export const HYBRID_SEARCH_SCHEMA = {
   type: "object",
   properties: {
     query: { type: "string" },
-    topK: { type: "number" }
+    topK: { type: "number" },
+    folder: { type: "string" },
+    tags: { type: "array", items: { type: "string" } },
+    dateFrom: { type: "string" },
+    dateTo: { type: "string" }
   },
   required: ["query"]
 };

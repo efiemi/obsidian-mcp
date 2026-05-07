@@ -226,7 +226,13 @@ export class MCPServer {
         semanticSearch(
           this.store,
           String(args.query ?? ""),
-          typeof args.topK === "number" ? Number(args.topK) : undefined
+          typeof args.topK === "number" ? Number(args.topK) : undefined,
+          {
+            folder: typeof args.folder === "string" ? args.folder : undefined,
+            tags: Array.isArray(args.tags) ? args.tags.map(String) : undefined,
+            dateFrom: typeof args.dateFrom === "string" ? args.dateFrom : undefined,
+            dateTo: typeof args.dateTo === "string" ? args.dateTo : undefined
+          }
         )
     },
     hybrid_search: {
@@ -240,7 +246,13 @@ export class MCPServer {
           this.getClient(),
           this.store,
           String(args.query ?? ""),
-          typeof args.topK === "number" ? Number(args.topK) : undefined
+          typeof args.topK === "number" ? Number(args.topK) : undefined,
+          {
+            folder: typeof args.folder === "string" ? args.folder : undefined,
+            tags: Array.isArray(args.tags) ? args.tags.map(String) : undefined,
+            dateFrom: typeof args.dateFrom === "string" ? args.dateFrom : undefined,
+            dateTo: typeof args.dateTo === "string" ? args.dateTo : undefined
+          }
         )
     },
     get_similar_notes: {

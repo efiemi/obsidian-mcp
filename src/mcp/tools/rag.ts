@@ -3,11 +3,97 @@ import { type VectorStore } from "../../rag/vector-store.js";
 import { ObsidianClient } from "../../obsidian/client.js";
 import { settings } from "../../config.js";
 
-export const semanticSearch = async (store: VectorStore, query: string, topK = 5) => {
+type SearchFilters = {
+  folder?: string;
+  tags?: string[];
+  dateFrom?: string;
+  dateTo?: string;
+};
+
+const normalizeDate = (value: string | undefined): number | null => {
+  if (!value?.trim()) {
+    return null;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+};
+
+const tokenizeQuery = (query: string): string[] =>
+  query
+    .toLowerCase()
+    .split(/[^a-z0-9_/-]+/i)
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 3);
+
+const matchesFilters = (metadata: Record<string, unknown>, filters: SearchFilters): boolean => {
+  if (filters.folder?.trim()) {
+    const folder = String(metadata.folder ?? "");
+    if (!folder.toLowerCase().startsWith(filters.folder.trim().toLowerCase())) {
+      return false;
+    }
+  }
+
+  if (filters.tags && filters.tags.length > 0) {
+    const tags = Array.isArray(metadata.tags) ? metadata.tags.map((item) => String(item).toLowerCase()) : [];
+    const expected = filters.tags.map((item) => item.toLowerCase());
+    if (!expected.every((item) => tags.includes(item))) {
+      return false;
+    }
+  }
+
+  const updatedAt = typeof metadata.updated_at === "string" ? normalizeDate(metadata.updated_at) : null;
+  const from = normalizeDate(filters.dateFrom);
+  const to = normalizeDate(filters.dateTo);
+  if (from !== null && (updatedAt === null || updatedAt < from)) {
+    return false;
+  }
+  if (to !== null && (updatedAt === null || updatedAt > to)) {
+    return false;
+  }
+  return true;
+};
+
+const applyHybridBoost = (
+  item: { path: string; combinedScore: number; semanticScore: number; keywordScore: number; metadata?: Record<string, unknown> },
+  query: string
+): { boostedScore: number; scoreBreakdown: Record<string, number> } => {
+  const metadata = item.metadata ?? {};
+  const queryTokens = tokenizeQuery(query);
+  const tags = Array.isArray(metadata.tags) ? metadata.tags.map((value) => String(value).toLowerCase()) : [];
+  const folder = String(metadata.folder ?? "").toLowerCase();
+  const updatedAt = typeof metadata.updated_at === "string" ? normalizeDate(metadata.updated_at) : null;
+
+  const tagMatch = queryTokens.some((token) => tags.includes(token)) ? settings.hybridBoostTagMatch : 0;
+  const folderMatch = queryTokens.some((token) => folder.includes(token)) ? settings.hybridBoostFolderMatch : 0;
+
+  let recency = 0;
+  if (updatedAt !== null && settings.hybridBoostRecentDays > 0) {
+    const ageDays = (Date.now() - updatedAt) / (1000 * 60 * 60 * 24);
+    if (ageDays >= 0 && ageDays <= settings.hybridBoostRecentDays) {
+      recency = settings.hybridBoostRecentValue;
+    }
+  }
+
+  const boostedScore = item.combinedScore + tagMatch + folderMatch + recency;
+  return {
+    boostedScore,
+    scoreBreakdown: {
+      keyword: Number(item.keywordScore.toFixed(6)),
+      semantic: Number(item.semanticScore.toFixed(6)),
+      baseCombined: Number(item.combinedScore.toFixed(6)),
+      tagBoost: Number(tagMatch.toFixed(6)),
+      folderBoost: Number(folderMatch.toFixed(6)),
+      recencyBoost: Number(recency.toFixed(6)),
+      final: Number(boostedScore.toFixed(6))
+    }
+  };
+};
+
+export const semanticSearch = async (store: VectorStore, query: string, topK = 5, filters: SearchFilters = {}) => {
   const limit = clampTopK(topK, 5);
   const vector = await new Embedder().embedText(query);
-  const docs = await store.query(vector, limit);
   const indexedDocuments = await store.count();
+  const docs = await store.query(vector, Math.min(Math.max(limit * 4, limit), Math.max(1, indexedDocuments)));
 
   const results = docs.map((doc) => {
     const score = dotProduct(vector, doc.embedding);
@@ -18,7 +104,7 @@ export const semanticSearch = async (store: VectorStore, query: string, topK = 5
       excerpt: excerptFromContent(doc.content, query),
       metadata: doc.metadata
     };
-  });
+  }).filter((item) => matchesFilters(item.metadata, filters)).slice(0, limit);
 
   return {
     query,
@@ -29,6 +115,7 @@ export const semanticSearch = async (store: VectorStore, query: string, topK = 5
       indexedDocuments === 0
         ? "No indexed documents found. Run `run_ingest` or `sync_if_dirty` before semantic search."
         : undefined,
+    filtersApplied: filters,
     results
   };
 };
@@ -129,12 +216,13 @@ const semanticFromStore = async (
   store: VectorStore,
   queryEmbedding: number[],
   topK: number
-): Promise<{ path: string; score: number; excerpt: string }[]> => {
+): Promise<{ path: string; score: number; excerpt: string; metadata: Record<string, unknown> }[]> => {
   const docs = await store.query(queryEmbedding, topK);
   return docs.map((doc) => ({
     path: doc.path,
     score: dotProduct(queryEmbedding, doc.embedding),
-    excerpt: excerptFromContent(doc.content)
+    excerpt: excerptFromContent(doc.content),
+    metadata: doc.metadata
   }));
 };
 
@@ -208,7 +296,8 @@ export const hybridSearch = async (
   client: ObsidianClient,
   store: VectorStore,
   query: string,
-  topK = 8
+  topK = 8,
+  filters: SearchFilters = {}
 ) => {
   const limit = clampTopK(topK, 8);
   const { keywordWeight, semanticWeight } = normalizeWeights(
@@ -240,6 +329,7 @@ export const hybridSearch = async (
       const combinedScore = keywordScore * keywordWeight + semanticScore * semanticWeight;
       const keywordHit = keyword.find((item) => item.path === path);
       const semanticHit = semantic.find((item) => item.path === path);
+      const metadata = semanticHit && "metadata" in semanticHit ? (semanticHit.metadata as Record<string, unknown>) : undefined;
       const source: "keyword" | "semantic" | "both" =
         keywordScore > 0 && semanticScore > 0
           ? "both"
@@ -247,17 +337,26 @@ export const hybridSearch = async (
             ? "keyword"
             : "semantic";
 
-      return {
+      const base = {
         path,
         keywordScore: Number(keywordScore.toFixed(6)),
         semanticScore: Number(semanticScore.toFixed(6)),
         combinedScore: Number(combinedScore.toFixed(6)),
+        metadata,
         source,
         confidence: confidenceLabel(combinedScore),
         excerpt: keywordHit?.excerpt ?? semanticHit?.excerpt ?? ""
       };
+
+      const { boostedScore, scoreBreakdown } = applyHybridBoost(base, query);
+      return {
+        ...base,
+        boostedScore: Number(boostedScore.toFixed(6)),
+        scoreBreakdown
+      };
     })
-    .sort((left, right) => right.combinedScore - left.combinedScore)
+    .filter((item) => matchesFilters(item.metadata ?? {}, filters))
+    .sort((left, right) => right.boostedScore - left.boostedScore)
     .slice(0, limit);
 
   return {
@@ -269,6 +368,7 @@ export const hybridSearch = async (
     },
     backend: store.getBackend(),
     semanticFallbackUsed: semanticFromIndexed.length === 0,
+    filtersApplied: filters,
     results
   };
 };
