@@ -7,6 +7,7 @@ export const semanticSearch = async (store: VectorStore, query: string, topK = 5
   const limit = clampTopK(topK, 5);
   const vector = await new Embedder().embedText(query);
   const docs = await store.query(vector, limit);
+  const indexedDocuments = await store.count();
 
   const results = docs.map((doc) => {
     const score = dotProduct(vector, doc.embedding);
@@ -23,6 +24,11 @@ export const semanticSearch = async (store: VectorStore, query: string, topK = 5
     query,
     topK: limit,
     backend: store.getBackend(),
+    indexedDocuments,
+    warning:
+      indexedDocuments === 0
+        ? "No indexed documents found. Run `run_ingest` or `sync_if_dirty` before semantic search."
+        : undefined,
     results
   };
 };

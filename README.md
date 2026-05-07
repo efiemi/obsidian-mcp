@@ -18,6 +18,8 @@ Servidor MCP em Node.js/TypeScript para integrar agentes (Codex/IDE) com um vaul
 - `get_backlinks`: notas que referenciam a nota alvo
 - `get_outgoing_links`: links presentes na nota alvo
 - `get_graph_context`: notas relacionadas e cluster semântico
+- `get_hotspot_notes`: identifica notas hub (maior grau no grafo de links)
+- `get_surprising_connections`: identifica conexões distantes entre pastas
 - `semantic_search`: busca semântica (RAG)
 - `hybrid_search`: combina ranking keyword + semântico
 - `get_similar_notes`: encontra notas semanticamente similares
@@ -110,6 +112,8 @@ npm run ingest
 
 Observação:
 - `npm run ingest` agora usa `nvm use` automaticamente (via `.nvmrc`) antes de executar a ingestão.
+- Para continuar o lote mesmo com falhas isoladas, use `npm run ingest:raw -- --continue-on-error`.
+- Escritas de nota (`write_note`, `append_to_note`, `update_section`, `create_note_from_template`) marcam o índice incremental como `dirty` automaticamente.
 
 Observação:
 - `OBSIDIAN_VAULT_ROOT` pode ser caminho absoluto (recomendado) ou apenas o nome do vault (ex.: `Efiemi-Tech`).
@@ -121,6 +125,7 @@ Observação:
 O servidor usa RAG nas tools abaixo:
 
 - `semantic_search`: faz embedding da query e busca vetorial no `VectorStore` (Postgres/pgvector ou memória). Para ter resultado consistente aqui, rode `npm run ingest` antes.
+  - Quando o índice estiver vazio, retorna `warning` com orientação para executar `run_ingest`/`sync_if_dirty`.
 - `hybrid_search`: combina busca keyword (`search_notes`) com score semântico.
   - Primeiro tenta semântico no índice vetorial.
   - Se o índice estiver vazio/incompleto, faz fallback "live" lendo notas do vault (até 120) e calculando embedding na hora.

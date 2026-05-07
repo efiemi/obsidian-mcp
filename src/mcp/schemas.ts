@@ -72,6 +72,13 @@ export const GET_GRAPH_CONTEXT_SCHEMA = {
   required: ["path"]
 };
 
+export const TOPK_ONLY_SCHEMA = {
+  type: "object",
+  properties: {
+    topK: { type: "number" }
+  }
+};
+
 export const APPEND_TO_NOTE_SCHEMA = {
   type: "object",
   properties: {

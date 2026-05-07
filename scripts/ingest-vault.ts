@@ -76,6 +76,8 @@ const main = async (): Promise<void> => {
   const files = await listMarkdownFiles(vaultPath);
   let indexedCount = 0;
   let skippedEmptyCount = 0;
+  let failedCount = 0;
+  const continueOnError = process.argv.includes("--continue-on-error");
 
   for (const filePath of files) {
     const content = await readFile(filePath, "utf-8");
@@ -86,12 +88,23 @@ const main = async (): Promise<void> => {
       continue;
     }
 
-    await indexer.indexNote(relPath, content, { type: "note" });
-    indexedCount += 1;
+    try {
+      await indexer.indexNote(relPath, content, { type: "note" });
+      indexedCount += 1;
+    } catch (error: unknown) {
+      failedCount += 1;
+      if (!continueOnError) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : "unknown error";
+      console.error(`Failed indexing "${relPath}": ${message}`);
+    }
   }
 
   // Keep output simple for automation.
-  console.log(`Indexed ${indexedCount} markdown files (skipped empty: ${skippedEmptyCount})`);
+  console.log(
+    `Indexed ${indexedCount} markdown files (skipped empty: ${skippedEmptyCount}, failed: ${failedCount}, continueOnError: ${continueOnError})`
+  );
 };
 
 main().catch((error: unknown) => {

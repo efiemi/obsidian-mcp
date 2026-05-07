@@ -17,6 +17,7 @@ import {
   SEARCH_NOTES_SCHEMA,
   SEMANTIC_SEARCH_SCHEMA,
   SYNC_FILES_SCHEMA,
+  TOPK_ONLY_SCHEMA,
   SUMMARIZE_NOTES_SCHEMA,
   UPDATE_SECTION_SCHEMA,
   WRITE_NOTE_SCHEMA
@@ -27,9 +28,11 @@ import {
   createNoteFromTemplate,
   getBacklinks,
   getGraphContext,
+  getHotspotNotes,
   getNoteLinks,
   getNoteMetadata,
   getOutgoingLinks,
+  getSurprisingConnections,
   listFolders,
   listNotes,
   readNote,
@@ -194,6 +197,24 @@ export class MCPServer {
           String(args.path ?? ""),
           typeof args.topK === "number" ? Number(args.topK) : undefined
         )
+    },
+    get_hotspot_notes: {
+      spec: {
+        name: "get_hotspot_notes",
+        description: "Find hub notes by graph degree (incoming + outgoing links)",
+        inputSchema: TOPK_ONLY_SCHEMA
+      },
+      handler: async (args) =>
+        getHotspotNotes(this.getClient(), typeof args.topK === "number" ? Number(args.topK) : undefined)
+    },
+    get_surprising_connections: {
+      spec: {
+        name: "get_surprising_connections",
+        description: "Find distant cross-folder note links as unexpected connections",
+        inputSchema: TOPK_ONLY_SCHEMA
+      },
+      handler: async (args) =>
+        getSurprisingConnections(this.getClient(), typeof args.topK === "number" ? Number(args.topK) : undefined)
     },
     semantic_search: {
       spec: {

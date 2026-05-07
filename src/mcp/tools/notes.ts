@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { settings } from "../../config.js";
 import { ObsidianClient } from "../../obsidian/client.js";
 import { Embedder } from "../../rag/embedder.js";
+import { markIndexDirty } from "../../rag/incremental-sync.js";
 
 const normalize = (path: string): string => path.trim().replace(/^\/+/, "");
 const normalizeFolder = (path: string): string => path.trim().replace(/^\/+|\/+$/g, "");
@@ -298,6 +299,26 @@ const dotProduct = (left: number[], right: number[]): number => {
     total += left[i] * right[i];
   }
   return total;
+};
+
+const pathDistance = (left: string, right: string): number => {
+  const leftParts = normalize(left).split("/").filter(Boolean);
+  const rightParts = normalize(right).split("/").filter(Boolean);
+  const maxCommon = Math.min(leftParts.length, rightParts.length);
+  let common = 0;
+  while (common < maxCommon && leftParts[common] === rightParts[common]) {
+    common += 1;
+  }
+  return (leftParts.length - common) + (rightParts.length - common);
+};
+
+const parentFolder = (path: string): string => {
+  const normalized = normalize(path);
+  const parts = normalized.split("/");
+  if (parts.length <= 1) {
+    return "";
+  }
+  return parts.slice(0, -1).join("/");
 };
 
 const GRAPH_CACHE_TTL_MS = 30_000;
@@ -596,6 +617,7 @@ export const writeNote = async (client: ObsidianClient, path: string, content: s
     try {
       await client.writeNote(candidate, content);
       invalidateGraphCaches(path);
+      await markIndexDirty().catch(() => undefined);
       return "ok";
     } catch (error) {
       if (!isHttp404(error)) {
@@ -829,12 +851,25 @@ export const getGraphContext = async (
   topK?: number
 ): Promise<{
   path: string;
+  directNeighbors: {
+    path: string;
+    source: "backlink" | "outgoing_link";
+  }[];
+  semanticCluster: {
+    path: string;
+    score: number;
+  }[];
+  bridgeNotes: {
+    path: string;
+    score: number;
+    intersectsWith: string[];
+  }[];
   relatedNotes: {
     path: string;
-    source: "backlink" | "outgoing_link" | "semantic";
+    source: "backlink" | "outgoing_link" | "semantic" | "bridge";
     score?: number;
   }[];
-  semanticCluster: string[];
+  semanticClusterPaths: string[];
 }> => {
   const normalizedPath = normalize(path);
   const embedder = new Embedder();
@@ -844,13 +879,21 @@ export const getGraphContext = async (
   });
   const links = await getNoteLinks(client, normalizedPath);
 
-  const relatedByPath = new Map<string, { path: string; source: "backlink" | "outgoing_link" | "semantic"; score?: number }>();
+  const directNeighbors: { path: string; source: "backlink" | "outgoing_link" }[] = [];
+  const relatedByPath = new Map<
+    string,
+    { path: string; source: "backlink" | "outgoing_link" | "semantic" | "bridge"; score?: number }
+  >();
   for (const backlink of links.incomingLinks) {
-    relatedByPath.set(backlink, { path: backlink, source: "backlink" });
+    const entry = { path: backlink, source: "backlink" as const };
+    directNeighbors.push(entry);
+    relatedByPath.set(backlink, entry);
   }
   for (const outgoing of links.outgoingLinks) {
     if (!relatedByPath.has(outgoing)) {
-      relatedByPath.set(outgoing, { path: outgoing, source: "outgoing_link" });
+      const entry = { path: outgoing, source: "outgoing_link" as const };
+      directNeighbors.push(entry);
+      relatedByPath.set(outgoing, entry);
     }
   }
 
@@ -882,7 +925,29 @@ export const getGraphContext = async (
   }
 
   scoredCandidates.sort((left, right) => right.score - left.score);
-  const semanticTop = scoredCandidates.slice(0, targetTopK);
+  const semanticTop: { path: string; score: number }[] = [];
+  const usedFolders = new Set<string>();
+  for (const candidate of scoredCandidates) {
+    const folder = parentFolder(candidate.path);
+    if (!usedFolders.has(folder)) {
+      semanticTop.push(candidate);
+      usedFolders.add(folder);
+    }
+    if (semanticTop.length >= targetTopK) {
+      break;
+    }
+  }
+  if (semanticTop.length < targetTopK) {
+    for (const candidate of scoredCandidates) {
+      if (semanticTop.some((item) => item.path === candidate.path)) {
+        continue;
+      }
+      semanticTop.push(candidate);
+      if (semanticTop.length >= targetTopK) {
+        break;
+      }
+    }
+  }
   for (const candidate of semanticTop) {
     if (!relatedByPath.has(candidate.path)) {
       relatedByPath.set(candidate.path, {
@@ -893,10 +958,151 @@ export const getGraphContext = async (
     }
   }
 
+  const bridgeScores = new Map<string, { score: number; intersectsWith: Set<string> }>();
+  const semanticPaths = new Set(semanticTop.map((candidate) => candidate.path));
+  for (const neighbor of directNeighbors) {
+    try {
+      const neighborLinks = await getNoteLinks(client, neighbor.path);
+      for (const outgoing of neighborLinks.outgoingLinks) {
+        const target = normalize(outgoing);
+        if (target === normalizedPath) {
+          continue;
+        }
+        if (!semanticPaths.has(target)) {
+          continue;
+        }
+        const current = bridgeScores.get(neighbor.path) ?? { score: 0, intersectsWith: new Set<string>() };
+        current.score += 1;
+        current.intersectsWith.add(target);
+        bridgeScores.set(neighbor.path, current);
+      }
+    } catch {
+      // Ignore sparse read failures while computing bridge notes.
+    }
+  }
+
+  const bridgeNotes = [...bridgeScores.entries()]
+    .map(([bridgePath, value]) => ({
+      path: bridgePath,
+      score: Number((value.score / Math.max(1, targetTopK)).toFixed(6)),
+      intersectsWith: [...value.intersectsWith].sort((a, b) => a.localeCompare(b))
+    }))
+    .sort((left, right) => right.score - left.score)
+    .slice(0, targetTopK);
+
+  for (const bridge of bridgeNotes) {
+    if (!relatedByPath.has(bridge.path)) {
+      relatedByPath.set(bridge.path, {
+        path: bridge.path,
+        source: "bridge",
+        score: bridge.score
+      });
+    }
+  }
+
   const relatedNotes = [...relatedByPath.values()].sort((left, right) => left.path.localeCompare(right.path));
   return {
     path: normalizedPath,
+    directNeighbors: directNeighbors.sort((left, right) => left.path.localeCompare(right.path)),
+    semanticCluster: semanticTop.map((candidate) => ({
+      path: candidate.path,
+      score: Number(candidate.score.toFixed(6))
+    })),
+    bridgeNotes,
     relatedNotes,
-    semanticCluster: semanticTop.map((candidate) => candidate.path)
+    semanticClusterPaths: semanticTop.map((candidate) => candidate.path)
+  };
+};
+
+export const getHotspotNotes = async (
+  client: ObsidianClient,
+  topK?: number
+): Promise<{
+  totalNotes: number;
+  results: Array<{
+    path: string;
+    degree: number;
+    incomingCount: number;
+    outgoingCount: number;
+  }>;
+}> => {
+  const targetTopK = clampTopK(topK, 10);
+  const notes = await getAllNotesCached(client);
+  const incomingMap = new Map<string, number>();
+  const outgoingMap = new Map<string, number>();
+
+  for (const notePath of notes) {
+    try {
+      const links = await getNoteLinks(client, notePath);
+      outgoingMap.set(notePath, links.outgoingLinks.length);
+      for (const target of links.outgoingLinks) {
+        incomingMap.set(target, (incomingMap.get(target) ?? 0) + 1);
+      }
+    } catch {
+      outgoingMap.set(notePath, 0);
+    }
+  }
+
+  const results = notes
+    .map((notePath) => {
+      const incomingCount = incomingMap.get(notePath) ?? 0;
+      const outgoingCount = outgoingMap.get(notePath) ?? 0;
+      return {
+        path: notePath,
+        degree: incomingCount + outgoingCount,
+        incomingCount,
+        outgoingCount
+      };
+    })
+    .sort((left, right) => right.degree - left.degree || left.path.localeCompare(right.path))
+    .slice(0, targetTopK);
+
+  return {
+    totalNotes: notes.length,
+    results
+  };
+};
+
+export const getSurprisingConnections = async (
+  client: ObsidianClient,
+  topK?: number
+): Promise<{
+  totalCandidates: number;
+  results: Array<{
+    from: string;
+    to: string;
+    distance: number;
+    score: number;
+  }>;
+}> => {
+  const targetTopK = clampTopK(topK, 10);
+  const notes = await getAllNotesCached(client);
+  const candidates: Array<{ from: string; to: string; distance: number; score: number }> = [];
+
+  for (const notePath of notes) {
+    try {
+      const links = await getNoteLinks(client, notePath);
+      for (const target of links.outgoingLinks) {
+        const distance = pathDistance(notePath, target);
+        if (distance <= 2) {
+          continue;
+        }
+        const score = Number((distance * 1).toFixed(6));
+        candidates.push({
+          from: notePath,
+          to: target,
+          distance,
+          score
+        });
+      }
+    } catch {
+      // Best effort.
+    }
+  }
+
+  candidates.sort((left, right) => right.score - left.score || left.from.localeCompare(right.from));
+  return {
+    totalCandidates: candidates.length,
+    results: candidates.slice(0, targetTopK)
   };
 };
