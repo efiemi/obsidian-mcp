@@ -7,6 +7,11 @@ const toInt = (value: string | undefined, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const toFloat = (value: string | undefined, fallback: number): number => {
+  const parsed = Number.parseFloat(value ?? "");
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 const splitPrefixes = (value: string | undefined): string[] => {
   if (!value) {
     return ["architecture/", "core/"];
@@ -28,5 +33,8 @@ export const settings = {
   bedrockModelId: process.env.BEDROCK_MODEL_ID ?? "amazon.titan-embed-text-v2:0",
   awsBedrockBearerToken: process.env.AWS_BEARER_TOKEN_BEDROCK ?? "",
   bedrockEmbeddingDimensions: toInt(process.env.BEDROCK_EMBEDDING_DIMENSIONS, 1024),
+  bedrockMaxInputChars: toInt(process.env.BEDROCK_MAX_INPUT_CHARS, 25_000),
+  hybridKeywordWeight: toFloat(process.env.HYBRID_KEYWORD_WEIGHT, 0.45),
+  hybridSemanticWeight: toFloat(process.env.HYBRID_SEMANTIC_WEIGHT, 0.55),
   blockedOverwritePrefixes: splitPrefixes(process.env.BLOCKED_OVERWRITE_PREFIXES)
 };

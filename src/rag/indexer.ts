@@ -8,11 +8,16 @@ export class VaultIndexer {
   ) {}
 
   async indexNote(path: string, content: string, metadata: Record<string, unknown> = {}): Promise<void> {
-    await this.store.upsert({
-      path,
-      content,
-      embedding: await this.embedder.embedText(content),
-      metadata
-    });
+    try {
+      await this.store.upsert({
+        path,
+        content,
+        embedding: await this.embedder.embedText(content),
+        metadata
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "unknown error";
+      throw new Error(`Failed to index note "${path}": ${message}`);
+    }
   }
 }

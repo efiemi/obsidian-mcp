@@ -66,6 +66,11 @@ export class PostgresVectorStore implements VectorStore {
     );
   }
 
+  async delete(path: string): Promise<void> {
+    await this.init();
+    await this.pool.query("DELETE FROM rag_documents WHERE path = $1", [path]);
+  }
+
   async query(embedding: number[], topK = 5): Promise<VectorDoc[]> {
     await this.init();
     const result = await this.pool.query<{
@@ -93,5 +98,23 @@ export class PostgresVectorStore implements VectorStore {
       embedding: parseVectorText(row.embedding_text),
       metadata: row.metadata ?? {}
     }));
+  }
+
+  async count(): Promise<number> {
+    await this.init();
+    const result = await this.pool.query<{ count: string }>("SELECT COUNT(*)::text AS count FROM rag_documents");
+    return Number.parseInt(result.rows[0]?.count ?? "0", 10);
+  }
+
+  async getLastUpdatedAt(): Promise<string | null> {
+    await this.init();
+    const result = await this.pool.query<{ last_updated_at: string | null }>(
+      "SELECT MAX(updated_at)::text AS last_updated_at FROM rag_documents"
+    );
+    return result.rows[0]?.last_updated_at ?? null;
+  }
+
+  getBackend(): string {
+    return "postgres";
   }
 }

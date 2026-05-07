@@ -9,7 +9,9 @@
     "start": "node dist/src/main.js",
     "start:mcp": "node dist/src/mcp_stdio.js",
     "dev:mcp": "npm run -s build && node dist/src/mcp_stdio.js",
-    "ingest": "tsx scripts/ingest-vault.ts"
+    "ingest:raw": "tsx scripts/ingest-vault.ts",
+    "ingest:nvm": "bash ./scripts/ingest-with-nvm.sh",
+    "ingest": "npm run -s ingest:nvm"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.888.0",

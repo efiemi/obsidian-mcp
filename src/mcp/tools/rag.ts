@@ -1,16 +1,30 @@
 import { Embedder } from "../../rag/embedder.js";
 import { type VectorStore } from "../../rag/vector-store.js";
 import { ObsidianClient } from "../../obsidian/client.js";
+import { settings } from "../../config.js";
 
 export const semanticSearch = async (store: VectorStore, query: string, topK = 5) => {
+  const limit = clampTopK(topK, 5);
   const vector = await new Embedder().embedText(query);
-  const docs = await store.query(vector, topK);
+  const docs = await store.query(vector, limit);
 
-  return docs.map((doc) => ({
-    path: doc.path,
-    content: doc.content,
-    metadata: doc.metadata
-  }));
+  const results = docs.map((doc) => {
+    const score = dotProduct(vector, doc.embedding);
+    return {
+      path: doc.path,
+      score: Number(score.toFixed(6)),
+      source: "indexed" as const,
+      excerpt: excerptFromContent(doc.content, query),
+      metadata: doc.metadata
+    };
+  });
+
+  return {
+    query,
+    topK: limit,
+    backend: store.getBackend(),
+    results
+  };
 };
 
 const RAG_CACHE_TTL_MS = 30_000;
@@ -161,6 +175,29 @@ const normalizeScores = (pairs: Array<{ path: string; score: number }>): Map<str
   return normalized;
 };
 
+const normalizeWeights = (
+  keywordWeightRaw: number,
+  semanticWeightRaw: number
+): { keywordWeight: number; semanticWeight: number } => {
+  const keywordWeight = Number.isFinite(keywordWeightRaw) && keywordWeightRaw > 0 ? keywordWeightRaw : 0.45;
+  const semanticWeight = Number.isFinite(semanticWeightRaw) && semanticWeightRaw > 0 ? semanticWeightRaw : 0.55;
+  const sum = keywordWeight + semanticWeight;
+  return {
+    keywordWeight: keywordWeight / sum,
+    semanticWeight: semanticWeight / sum
+  };
+};
+
+const confidenceLabel = (score: number): "high" | "medium" | "low" => {
+  if (score >= 0.7) {
+    return "high";
+  }
+  if (score >= 0.4) {
+    return "medium";
+  }
+  return "low";
+};
+
 export const hybridSearch = async (
   client: ObsidianClient,
   store: VectorStore,
@@ -168,6 +205,10 @@ export const hybridSearch = async (
   topK = 8
 ) => {
   const limit = clampTopK(topK, 8);
+  const { keywordWeight, semanticWeight } = normalizeWeights(
+    settings.hybridKeywordWeight,
+    settings.hybridSemanticWeight
+  );
   const keyword = await client.searchNotes(query);
   const embedder = new Embedder();
   const queryEmbedding = await embedder.embedText(query);
@@ -190,22 +231,40 @@ export const hybridSearch = async (
     .map((path) => {
       const keywordScore = keywordNormalized.get(path) ?? 0;
       const semanticScore = semanticNormalized.get(path) ?? 0;
-      const combinedScore = keywordScore * 0.45 + semanticScore * 0.55;
+      const combinedScore = keywordScore * keywordWeight + semanticScore * semanticWeight;
       const keywordHit = keyword.find((item) => item.path === path);
       const semanticHit = semantic.find((item) => item.path === path);
+      const source: "keyword" | "semantic" | "both" =
+        keywordScore > 0 && semanticScore > 0
+          ? "both"
+          : keywordScore > 0
+            ? "keyword"
+            : "semantic";
 
       return {
         path,
         keywordScore: Number(keywordScore.toFixed(6)),
         semanticScore: Number(semanticScore.toFixed(6)),
         combinedScore: Number(combinedScore.toFixed(6)),
+        source,
+        confidence: confidenceLabel(combinedScore),
         excerpt: keywordHit?.excerpt ?? semanticHit?.excerpt ?? ""
       };
     })
     .sort((left, right) => right.combinedScore - left.combinedScore)
     .slice(0, limit);
 
-  return { query, results };
+  return {
+    query,
+    topK: limit,
+    weights: {
+      keyword: Number(keywordWeight.toFixed(4)),
+      semantic: Number(semanticWeight.toFixed(4))
+    },
+    backend: store.getBackend(),
+    semanticFallbackUsed: semanticFromIndexed.length === 0,
+    results
+  };
 };
 
 export const getSimilarNotes = async (
@@ -316,5 +375,23 @@ export const summarizeNotes = async (client: ObsidianClient, paths: string[]) =>
     totalNotes: summaries.length,
     totalChars: summaries.reduce((acc, item) => acc + item.charCount, 0),
     summaries
+  };
+};
+
+export const getIndexStatus = async (client: ObsidianClient, store: VectorStore) => {
+  const tree = await client.walkTree();
+  const totalMarkdownNotes = tree.files.filter((path) => path.toLowerCase().endsWith(".md")).length;
+  const indexedDocuments = await store.count();
+  const lastIndexedAt = await store.getLastUpdatedAt();
+  const coverage = totalMarkdownNotes > 0 ? indexedDocuments / totalMarkdownNotes : 0;
+
+  return {
+    totalMarkdownNotes,
+    indexedDocuments,
+    coverage: Number(coverage.toFixed(6)),
+    coveragePct: Number((coverage * 100).toFixed(2)),
+    lastIndexedAt,
+    embeddingProvider: settings.embeddingProvider,
+    vectorBackend: store.getBackend()
   };
 };

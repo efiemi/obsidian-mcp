@@ -19,6 +19,15 @@ export const SEARCH_NOTES_SCHEMA = {
   required: ["query"]
 };
 
+export const SEMANTIC_SEARCH_SCHEMA = {
+  type: "object",
+  properties: {
+    query: { type: "string" },
+    topK: { type: "number" }
+  },
+  required: ["query"]
+};
+
 export const LIST_PATH_SCHEMA = {
   type: "object",
   properties: { path: { type: "string" } }
@@ -111,6 +120,22 @@ export const GET_SIMILAR_NOTES_SCHEMA = {
 };
 
 export const SUMMARIZE_NOTES_SCHEMA = {
+  type: "object",
+  properties: {
+    paths: {
+      type: "array",
+      items: { type: "string" }
+    }
+  },
+  required: ["paths"]
+};
+
+export const EMPTY_SCHEMA = {
+  type: "object",
+  properties: {}
+};
+
+export const SYNC_FILES_SCHEMA = {
   type: "object",
   properties: {
     paths: {

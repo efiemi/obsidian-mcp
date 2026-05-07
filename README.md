@@ -22,6 +22,12 @@ Servidor MCP em Node.js/TypeScript para integrar agentes (Codex/IDE) com um vaul
 - `hybrid_search`: combina ranking keyword + semântico
 - `get_similar_notes`: encontra notas semanticamente similares
 - `summarize_notes`: resume notas para preparação de contexto
+- `get_index_status`: status de saúde/cobertura do índice vetorial
+- `run_ingest`: dispara ingestão usando a versão do Node definida em `.nvmrc`
+- `mark_dirty`: marca índice incremental como sujo
+- `sync_if_dirty`: sincroniza incrementalmente apenas quando houver dirty flag
+- `sync_files`: sincroniza incrementalmente uma lista de paths
+- `reset_sync_state`: reseta estado local de sync incremental
 
 Templates disponíveis em `create_note_from_template`:
 - `architecture`
@@ -60,6 +66,9 @@ EMBEDDING_PROVIDER=bedrock
 AWS_REGION=us-east-1
 BEDROCK_MODEL_ID=amazon.titan-embed-text-v2:0
 BEDROCK_EMBEDDING_DIMENSIONS=256
+BEDROCK_MAX_INPUT_CHARS=25000
+HYBRID_KEYWORD_WEIGHT=0.45
+HYBRID_SEMANTIC_WEIGHT=0.55
 AWS_BEARER_TOKEN_BEDROCK=your_bedrock_bearer_token_here
 ```
 
@@ -100,8 +109,12 @@ npm run ingest
 ```
 
 Observação:
+- `npm run ingest` agora usa `nvm use` automaticamente (via `.nvmrc`) antes de executar a ingestão.
+
+Observação:
 - `OBSIDIAN_VAULT_ROOT` pode ser caminho absoluto (recomendado) ou apenas o nome do vault (ex.: `Efiemi-Tech`).
 - Quando for apenas nome, o script tenta localizar em `./`, `~/`, `~/Obsidian`, `~/Documents/Obsidian` e `~/Documentos/Obsidian`.
+- Se houver notas muito grandes, ajuste `BEDROCK_MAX_INPUT_CHARS` para limitar o texto enviado ao modelo de embedding e evitar `HTTP 400` de validação.
 
 ## Quando o RAG é usado neste servidor
 
@@ -115,6 +128,15 @@ O servidor usa RAG nas tools abaixo:
   - Se faltar cobertura no índice, também usa fallback "live" no vault.
 
 Tools como `read_note`, `list_notes`, `search_notes` e `summarize_notes` não dependem de índice vetorial para funcionar.
+
+## Operação de índice
+
+- `get_index_status`: retorna total de notas markdown, total indexado, cobertura percentual, `lastIndexedAt`, provider de embedding e backend vetorial.
+- `run_ingest`: permite disparar ingestão pelo próprio agente MCP; retorna `stdout/stderr` do comando.
+- `mark_dirty`: define dirty flag no arquivo `.obsidian-mcp/index-state.json`.
+- `sync_if_dirty`: processa apenas arquivos alterados desde a última sync com base em hash persistido.
+- `sync_files`: recebe paths relativos ao root do vault e sincroniza apenas esses arquivos.
+- `reset_sync_state`: limpa o estado incremental local para reinicialização do processo.
 
 ## Quando usamos embedding via Bedrock
 

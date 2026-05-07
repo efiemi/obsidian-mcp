@@ -4,6 +4,7 @@ import {
   APPEND_TO_NOTE_SCHEMA,
   CREATE_FOLDER_SCHEMA,
   CREATE_NOTE_FROM_TEMPLATE_SCHEMA,
+  EMPTY_SCHEMA,
   GET_SIMILAR_NOTES_SCHEMA,
   GET_BACKLINKS_SCHEMA,
   GET_GRAPH_CONTEXT_SCHEMA,
@@ -14,6 +15,8 @@ import {
   LIST_PATH_SCHEMA,
   READ_NOTE_SCHEMA,
   SEARCH_NOTES_SCHEMA,
+  SEMANTIC_SEARCH_SCHEMA,
+  SYNC_FILES_SCHEMA,
   SUMMARIZE_NOTES_SCHEMA,
   UPDATE_SECTION_SCHEMA,
   WRITE_NOTE_SCHEMA
@@ -33,7 +36,8 @@ import {
   updateSection,
   writeNote
 } from "./tools/notes.js";
-import { getSimilarNotes, hybridSearch, semanticSearch, summarizeNotes } from "./tools/rag.js";
+import { clearSyncState, markDirty, runIngest, runSyncFiles, runSyncIfDirty } from "./tools/ops.js";
+import { getIndexStatus, getSimilarNotes, hybridSearch, semanticSearch, summarizeNotes } from "./tools/rag.js";
 import { searchNotes } from "./tools/search.js";
 
 type JsonRpcRequest = {
@@ -195,9 +199,14 @@ export class MCPServer {
       spec: {
         name: "semantic_search",
         description: "Semantic search across notes using embeddings",
-        inputSchema: SEARCH_NOTES_SCHEMA
+        inputSchema: SEMANTIC_SEARCH_SCHEMA
       },
-      handler: async (args) => semanticSearch(this.store, String(args.query ?? ""))
+      handler: async (args) =>
+        semanticSearch(
+          this.store,
+          String(args.query ?? ""),
+          typeof args.topK === "number" ? Number(args.topK) : undefined
+        )
     },
     hybrid_search: {
       spec: {
@@ -237,6 +246,57 @@ export class MCPServer {
         const paths = Array.isArray(args.paths) ? args.paths.map(String) : [];
         return summarizeNotes(this.getClient(), paths);
       }
+    },
+    get_index_status: {
+      spec: {
+        name: "get_index_status",
+        description: "Return index health and coverage for semantic search",
+        inputSchema: EMPTY_SCHEMA
+      },
+      handler: async () => getIndexStatus(this.getClient(), this.store)
+    },
+    run_ingest: {
+      spec: {
+        name: "run_ingest",
+        description: "Run vault ingestion using .nvmrc (nvm use) and return command output",
+        inputSchema: EMPTY_SCHEMA
+      },
+      handler: async () => runIngest()
+    },
+    mark_dirty: {
+      spec: {
+        name: "mark_dirty",
+        description: "Mark incremental index as dirty",
+        inputSchema: EMPTY_SCHEMA
+      },
+      handler: async () => markDirty()
+    },
+    sync_if_dirty: {
+      spec: {
+        name: "sync_if_dirty",
+        description: "Run incremental sync only when dirty flag is set",
+        inputSchema: EMPTY_SCHEMA
+      },
+      handler: async () => runSyncIfDirty(this.store)
+    },
+    sync_files: {
+      spec: {
+        name: "sync_files",
+        description: "Run incremental sync for a specific list of note paths",
+        inputSchema: SYNC_FILES_SCHEMA
+      },
+      handler: async (args) => {
+        const paths = Array.isArray(args.paths) ? args.paths.map(String) : [];
+        return runSyncFiles(paths, this.store);
+      }
+    },
+    reset_sync_state: {
+      spec: {
+        name: "reset_sync_state",
+        description: "Reset local incremental sync state file",
+        inputSchema: EMPTY_SCHEMA
+      },
+      handler: async () => clearSyncState()
     }
   };
 
